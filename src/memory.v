@@ -25,25 +25,8 @@ module memory
 	output wire[ 7:0] q,
 	input  wire[15:0] a,
 
-	input  wire[ 7:0] keyQ,
-`ifdef ZX1
-	output wire       ramWe,
-	inout  wire[ 7:0] ramDQ,
-	output wire[20:0] ramA
-`elsif USE_BRAM
-   output wire       filler
-`elsif USE_SDRAM 
-	output wire       ramCk,
-	output wire       ramCe,
-	output wire       ramCs,
-	output wire       ramWe,
-	output wire       ramRas,
-	output wire       ramCas,
-	output wire[ 1:0] ramDqm,
-	inout  wire[15:0] ramDQ,
-	output wire[ 1:0] ramBA,
-	output wire[12:0] ramA	
-`endif
+	input  wire[ 7:0] keyQ
+
 );
 //-------------------------------------------------------------------------------------------------
 
@@ -77,14 +60,6 @@ rom #(.KB(2), .FN("font.hex")) Font
 );
 
 //-------------------------------------------------------------------------------------------------
-`ifdef ZX1
-
-assign ramWe = !(!mreq && !wr);
-assign ramDQ = ramWe ? 8'bZ : d;
-assign ramA  = { 5'd0, a };
-
-wire[7:0] ramQ = ramDQ;
-`elsif USE_BRAM
 //-------------------------------------------------------------------------------------------------
 
 wire extWe = !(!mreq && !wr);
@@ -101,41 +76,6 @@ ram #(.KB(64)) ExtendedRam
         .a      (a      )
 );
 
-`elsif USE_SDRAM
-
-wire sdrRd = !(!mreq && !rd);
-wire sdrWr = !(!mreq && !wr);
-
-wire[15:0] sdrD = {2{d}};
-wire[15:0] sdrQ;
-wire[23:0] sdrA  = { 8'd0, a };
-
-wire[7:0] ramQ = ramDQ[7:0];
-
-sdram SDram
-(
-	.clock  (clock  ),
-	.reset  (reset  ),
-	.ready  (ready  ),
-	.refresh(rfsh   ),
-	.write  (sdrWr  ),
-	.read   (sdrRd  ),
-	.portD  (sdrD   ),
-	.portQ  (sdrQ   ),
-	.portA  (sdrA   ),
-	.ramCk  (ramCk  ),
-	.ramCe  (ramCe  ),
-	.ramCs  (ramCs  ),
-	.ramRas (ramRas ),
-	.ramCas (ramCas ),
-	.ramWe  (ramWe  ),
-	.ramDqm (ramDqm ),
-	.ramDQ  (ramDQ  ),
-	.ramBA  (ramBA  ),
-	.ramA   (ramA   )
-);
-
-`endif
 //-------------------------------------------------------------------------------------------------
 
 wire[ 7:0] ramQ1;

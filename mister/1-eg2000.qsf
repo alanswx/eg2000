@@ -19,13 +19,26 @@
 #
 # Quartus Prime
 # Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition
-# Date created = 00:24:21  March 14, 2021
+# Date created = 15:14:15  February 03, 2022
+#
+# -------------------------------------------------------------------------- #
+#
+# Notes:
+#
+# 1) The default values for assignments are stored in the file:
+#		eg2000_assignment_defaults.qdf
+#    If this file doesn't exist, see file:
+#		assignment_defaults.qdf
+#
+# 2) Altera recommends that you do not modify this file. This
+#    file is updated automatically by the Quartus Prime software
+#    and any changes you make may be lost or overwritten.
 #
 # -------------------------------------------------------------------------- #
 
-QUARTUS_VERSION = "17.0"
-DATE = "00:24:21  March 14, 2021"
 
-# Revisions
-
-PROJECT_REVISION = "eg2000"
+set_global_assignment -name TOP_LEVEL_ENTITY sys_top
+set_global_assignment -name DEVICE AUTO
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 17.0.2
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "15:14:15  FEBRUARY 03, 2022"
+set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"

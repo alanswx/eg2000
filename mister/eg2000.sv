@@ -16,6 +16,7 @@
 //
 //============================================================================
 
+
 module emu
 (
 	//Master input clock
@@ -26,7 +27,7 @@ module emu
 	input         RESET,
 
 	//Must be passed to hps_io module
-	inout  [45:0] HPS_BUS,
+	inout  [48:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        CLK_VIDEO,
@@ -52,11 +53,12 @@ module emu
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
 
-`ifdef USE_FB
+`ifdef MISTER_FB
 	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
 	// FB_FORMAT:
-	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
+	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp	 signal vdg_hs_n        : std_logic;
 	//    [3]   : 0=16bits 565 1=16bits 1555
 	//    [4]   : 0=RGB  1=BGR (for 16/24/32 modes)
 	//
@@ -71,6 +73,7 @@ module emu
 	input         FB_LL,
 	output        FB_FORCE_BLANK,
 
+`ifdef MISTER_FB_PALETTE
 	// Palette control for 8bit modes.
 	// Ignored for other video modes.
 	output        FB_PAL_CLK,
@@ -78,6 +81,7 @@ module emu
 	output [23:0] FB_PAL_DOUT,
 	input  [23:0] FB_PAL_DIN,
 	output        FB_PAL_WR,
+`endif
 `endif
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
@@ -109,7 +113,6 @@ module emu
 	output        SD_CS,
 	input         SD_CD,
 
-`ifdef USE_DDRAM
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -122,9 +125,7 @@ module emu
 	output [63:0] DDRAM_DIN,
 	output  [7:0] DDRAM_BE,
 	output        DDRAM_WE,
-`endif
 
-`ifdef USE_SDRAM
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
 	output        SDRAM_CKE,
@@ -137,10 +138,10 @@ module emu
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
-`endif
 
-`ifdef DUAL_SDRAM
+`ifdef MISTER_DUAL_SDRAM
 	//Secondary SDRAM
+	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
 	input         SDRAM2_EN,
 	output        SDRAM2_CLK,
 	output [12:0] SDRAM2_A,
@@ -169,17 +170,18 @@ module emu
 
 	input         OSD_STATUS
 );
-
 ///////// Default values for ports not used in this core /////////
 
-assign ADC_BUS  = 'Z;
 assign USER_OUT = '1;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = 'Z;
+
+
+
 assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
 assign VGA_SL = (scale[2]==1'b1)?2'd0:scale[1:0];
+assign HDMI_FREEZE = 0;
 
 assign VGA_F1 = 0;
 assign VGA_SCALER = 0;
@@ -202,32 +204,55 @@ localparam CONF_STR = {
    "OAC,Scandoubler Fx,None,CRT 25%,CRT 50%,CRT 75%,HQ2x;",
 	"OFG,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
    "-;",
+	"OE,Tape Input,File,ADC;",
+	"H0F2,CAS,Load Cassette;",
+	"H0TH,Stop & Rewind;",
+	"H0T2,Tape Play/Pause;",
+	"OD,Monitor Tape Sound,No,Yes;",
+	"-;",
 	"T0,Reset;",
 	"R0,Reset and close OSD;",
 	"V,v",`BUILD_DATE 
 };
 
 
+wire        forced_scandoubler;
+wire        direct_video;
+
 wire [21:0] gamma_bus;
-wire forced_scandoubler;
+
+
 wire  [1:0] buttons;
 wire [31:0] status;
 wire  [1:0] ps2;
 
+wire        ioctl_download;
+wire  [7:0] ioctl_index;
+wire        ioctl_wr;
+wire [24:0] ioctl_addr;
+wire  [7:0] ioctl_dout;
+
 
 // PS2DIV : la mitad del divisor que necesitas para dividir el clk_sys que le das al hpio, para que te de entre 10Khz y 16Kzh
-hps_io #(.STRLEN($size(CONF_STR)>>3), .PS2DIV(2500)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .PS2DIV(2500)) hps_io
 (
 	.clk_sys		(clk_sys),
 	.HPS_BUS		(HPS_BUS),
-	.EXT_BUS		(),
 
-	.conf_str	(CONF_STR),
+	.buttons(buttons),
+	.status(status),
 	.forced_scandoubler(forced_scandoubler),
+	.gamma_bus(gamma_bus),
+	.direct_video(direct_video),
+	
+	.status_menumask({status[14]}),
+	
+	.ioctl_download(ioctl_download),
+	.ioctl_index(ioctl_index),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
 
-	.buttons		(buttons),
-	.status		(status),
-//	.status_menumask({status[5]}),
 	.ps2_kbd_clk_out (ps2[0]),
    .ps2_kbd_data_out(ps2[1])
   );
@@ -264,6 +289,12 @@ always @(posedge clk_sys) if(!power) rs <= rs+1'd1;
 
 wire[3:0] color;
 
+assign AUDIO_L = AUDIO_R;
+assign AUDIO_R = sound_pad;
+wire [15:0] sound;
+wire [15:0] sound_pad =  {sound[15:11], sound[10] ^ (status[13] ? (status[14] ? adc_cassette_bit : casdout) : 1'b0), sound[9:0]};
+
+
 glue Glue
 (
 	.clock  (clk_sys),
@@ -277,9 +308,9 @@ glue Glue
 	.pixel  (pixel  ),
 	.color  (color  ),
 	.crtcDe (crtcDe_tmp),
-	.tape   (~tape_in),
-	.audio_l(AUDIO_L),
-	.audio_r(AUDIO_R),
+	.tape   (status[14]?adc_cassette_bit:casdout ),
+	.audio_l(sound),
+	.audio_r(),
 	.led    (led    ),
 	.ps2    (ps2    )
 );
@@ -380,10 +411,117 @@ video_freak video_freak
 );
 
 
+/////////////////////// ADC Module  //////////////////////////////
+
+
+wire [11:0] adc_data;
+wire        adc_sync;
+reg [11:0] adc_value;
+reg adc_sync_d;
+
+integer ii=0;
+reg [11:0] adc_val[0:511];
+reg [21:0] adc_total = 0;
+reg [11:0] adc_avg;
+
+reg adc_cassette_bit;
+
+
+// interface to ADC via framework
+//
+ltc2308 #(1, 48000, 50000000) adc_input		// mono, ADC_RATE = 48000, CLK_RATE = 50000000
+(
+	.reset(~power),
+	.clk(CLK_50M),
+
+	.ADC_BUS(ADC_BUS),
+	.dout(adc_data),
+	.dout_sync(adc_sync)
+);
+
+// when data arrives:
+//		- latch it in adc_value
+//		- keep track of a running average across 512 samples
+//
+//		-> this average acts as a high-pass filter above roughly 100 Hz while retaining
+//		 	while retaining very high frequency response, for possible future fast-load techniques
+//
+always @(posedge CLK_50M) begin
+
+	adc_sync_d<=adc_sync;
+	if(adc_sync_d ^ adc_sync) begin
+		adc_value <= adc_data;					// latch in current value, adc_Value
+		
+		adc_val[0] <= adc_value;				
+		adc_total  <= adc_total - adc_val[511] + adc_value;
+
+		for (ii=0; ii<511; ii=ii+1)
+			adc_val[ii+1] <= adc_val[ii];
+			
+		adc_avg <= adc_total[20:9];			// update average value every fetch
+		
+		if (adc_value < (adc_avg - 100))		// flip the cassette bit if > 0.1V from average
+			adc_cassette_bit <= 1;				// note that original CoCo reversed polarity
+
+		if (adc_value > (adc_avg + 100))
+			adc_cassette_bit <= 0;
+		
+	end
+end
+
+assign LED_USER = adc_cassette_bit ;
+
+
+
+
+wire casdout;
+wire cas_relay;
+
+
+
+wire [24:0] sdram_addr;
+wire [7:0] sdram_data;
+wire sdram_rd;
+wire load_tape = ioctl_index[5:0] == 2;
+reg [24:0] tape_end;
+
+sdram sdram
+(
+	.*,
+	.init(~pll_locked),
+	.clk(clk_sys),
+	.addr(ioctl_download ? ioctl_addr : sdram_addr),
+	.wtbt(0),
+	.dout(sdram_data),
+	.din(ioctl_dout),
+	.rd(sdram_rd),
+	.we(ioctl_wr & load_tape),
+	.ready()
+);
+
+
+
+always @(posedge clk_sys) begin
+ if (load_tape) tape_end <= ioctl_addr;
+end
+
+cassette cassette(
+  .clk(clk_sys),
+
+   .play(status[2]),
+   .rewind(status[17] | (load_tape&ioctl_download)),
+  .sdram_addr(sdram_addr),
+  .sdram_data(sdram_data),
+  .sdram_rd(sdram_rd),
+
+  .tape_end(tape_end),
+  .data(casdout)
+//   .status(tape_status)
+);
 
 
 //Mister TapeIn
-
+/*
 wire tape_in;
 wire tape_adc, tape_adc_act;
 
@@ -399,5 +537,5 @@ ltc2308_tape  tape
 );
 
 assign LED_USER    = ~tape_in;
-
+*/
 endmodule

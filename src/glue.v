@@ -7,14 +7,10 @@ module glue
 
 	output wire       hsync,
 	output wire       vsync,
-`ifdef USE_CE_PIX
 	output wire       ce_pix,
-`endif	
 
-`ifdef USE_BLANK
 	output wire       hblank,
 	output wire       vblank,
-`endif	
 
 	output wire       pixel,
 	output wire[ 3:0] color,
@@ -28,26 +24,8 @@ module glue
    output wire [15:0] audio_r,
 `endif
 	input  wire[ 1:0] ps2,
-	output wire       led,
-`ifdef ZX1
-	output wire       boot,
-	output wire       ramWe,
-	inout  wire[ 7:0] ramDQ,
-	output wire[20:0] ramA
-`elsif USE_BRAM
-	output wire       filler
-`elsif USE_SDRAM
-	output wire       ramCk,
-	output wire       ramCe,
-	output wire       ramCs,
-	output wire       ramWe,
-	output wire       ramRas,
-	output wire       ramCas,
-	output wire[ 1:0] ramDqm,
-	inout  wire[15:0] ramDQ,
-	output wire[ 1:0] ramBA,
-	output wire[12:0] ramA
-`endif
+	output wire       led
+
 );
 //-------------------------------------------------------------------------------------------------
 
@@ -133,10 +111,8 @@ UM6845R Crtc
 	.DO     (crtcQ  ),
 	.VSYNC  (vsync  ),
 	.HSYNC  (hsync  ),
-`ifdef USE_BLANK
 	.HBLANK (hblank ),
 	.VBLANK (vblank ),
-`endif	
 
 	.DE     (crtcDe ),
 	.FIELD  (       ),
@@ -251,25 +227,8 @@ memory Memory
 	.d      (q      ),
 	.q      (memQ   ),
 	.a      (a      ),
-	.keyQ   (keyQ   ),
-`ifdef ZX1 
-	.ramWe  (ramWe  ),
-	.ramDQ  (ramDQ  ),
-	.ramA   (ramA   )
-`elsif USE_BRAM 
-   .filler (       )	
-`elsif USE_SDRAM
-	.ramCk  (ramCk  ),
-	.ramCe  (ramCe  ),
-	.ramCs  (ramCs  ),
-	.ramWe  (ramWe  ),
-	.ramRas (ramRas ),
-	.ramCas (ramCas ),
-	.ramDqm (ramDqm ),
-	.ramDQ  (ramDQ  ),
-	.ramBA  (ramBA  ),
-	.ramA   (ramA   )
-`endif
+	.keyQ   (keyQ   )
+
 );
 
 assign pixel = (ven || cur[1]) && crtcDe;

@@ -33,10 +33,10 @@ module UM6845R
 	
 	output reg       VSYNC,
 	output reg       HSYNC,
-`ifdef USE_BLANK
+
    output reg       HBLANK,
 	output reg       VBLANK,
-`endif
+
 	output           DE,
 	output           FIELD,
 	output           CURSOR,
@@ -194,11 +194,7 @@ always @(posedge CLOCK) begin
 	end
 	else if (CLKEN) begin
 		if(line_new)                   hde <= 1;
-`ifdef USE_BLANK		
 		if(hcc_next == R1_h_displayed + 1'd1) hde <= 0;
-`else		
-		if(hcc_next == R1_h_displayed) hde <= 0;
-`endif
 		if(hsc) hsc <= hsc - 1'd1;
 		else if (hcc_next == R2_h_sync_pos) begin
 			if(R3_h_sync_width) begin
@@ -253,7 +249,6 @@ wire cde = R10_cursor_mode == 2'b00 || (R10_cursor_mode == 2'b10 && curcc[4]) ||
 
 
 // Blank generation
-`ifdef USE_BLANK
 always @(posedge CLOCK) begin
 
 	if(~nRESET) begin
@@ -265,7 +260,6 @@ always @(posedge CLOCK) begin
 		VBLANK <= ~vde;
 	end
 end
-`endif
 
 // Cursor control
 reg cursor_line;
